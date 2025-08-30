@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Voice Assistant</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #333;
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .status {
+            background: #e8f5e8;
+            border: 1px solid #4caf50;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .chat-container {
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            height: 300px;
+            overflow-y: auto;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #f9f9f9;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 10px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background: #007bff;
+            color: white;
+            margin-left: auto;
+        }
+        .assistant-message {
+            background: #e9ecef;
+            color: #333;
+        }
+        .input-container {
+            display: flex;
+            gap: 10px;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+        button {
+            padding: 15px 25px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .voice-button {
+            background: #28a745;
+        }
+        .voice-button:hover {
+            background: #1e7e34;
+        }
+        .voice-button.listening {
+            background: #dc3545;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        .info {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #666;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 AI Voice Assistant</h1>
+            <p>Your AI-powered voice assistant is ready!</p>
+        </div>
+        
+        <div class="status" id="status">
+            <strong>✅ Status:</strong> Voice Assistant is running and ready to chat!
+        </div>
+        
+        <div class="chat-container" id="chatContainer">
+            <div class="message assistant-message">
+                Hello! I'm your AI voice assistant. How can I help you today? You can type or use voice input!
+            </div>
+        </div>
+        
+        <div class="input-container">
+            <input type="text" id="messageInput" placeholder="Type your message here..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()" id="sendButton">Send</button>
+            <button class="voice-button" onclick="startVoiceInput()" id="voiceButton">🎤 Voice</button>
+        </div>
+        
+        <div class="info">
+            <strong>💡 How to use:</strong><br>
+            • Type your message and click "Send"<br>
+            • Click the microphone button for voice input<br>
+            • Your AI assistant will respond with intelligent answers<br>
+            • Voice input works best in Chrome/Edge browsers
+        </div>
+    </div>
+
+    <script>
+        let isListening = false;
+        let recognition = null;
+
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const sendButton = document.getElementById('sendButton');
+            const message = input.value.trim();
+            
+            if (message) {
+                addMessage(message, 'user');
+                input.value = '';
+                sendButton.disabled = true;
+                sendButton.textContent = 'Sending...';
+                
+                // Add loading message
+                const loadingDiv = document.createElement('div');
+                loadingDiv.className = 'message assistant-message loading';
+                loadingDiv.textContent = 'AI is thinking...';
+                document.getElementById('chatContainer').appendChild(loadingDiv);
+                
+                // Send to backend
+                fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Remove loading message
+                    const loadingMessages = document.querySelectorAll('.loading');
+                    loadingMessages.forEach(msg => msg.remove());
+                    
+                    if (data.success) {
+                        addMessage(data.response, 'assistant');
+                    } else {
+                        addMessage('Sorry, I encountered an error. Please try again.', 'assistant');
+                    }
+                })
+                .catch(error => {
+                    // Remove loading message
+                    const loadingMessages = document.querySelectorAll('.loading');
+                    loadingMessages.forEach(msg => msg.remove());
+                    
+                    addMessage('Sorry, I encountered an error. Please try again.', 'assistant');
+                })
+                .finally(() => {
+                    sendButton.disabled = false;
+                    sendButton.textContent = 'Send';
+                });
+            }
+        }
+        
+        function addMessage(message, sender) {
+            const container = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}-message`;
+            messageDiv.textContent = message;
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+        
+        function startVoiceInput() {
+            if (isListening) {
+                stopVoiceInput();
+                return;
+            }
+            
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+                
+                recognition.onstart = function() {
+                    isListening = true;
+                    const voiceButton = document.getElementById('voiceButton');
+                    voiceButton.textContent = '🎤 Listening...';
+                    voiceButton.classList.add('listening');
+                };
+                
+                recognition.onresult = function(event) {
+                    const transcript = event.results[0][0].transcript;
+                    document.getElementById('messageInput').value = transcript;
+                    sendMessage();
+                };
+                
+                recognition.onend = function() {
+                    stopVoiceInput();
+                };
+                
+                recognition.onerror = function(event) {
+                    console.error('Speech recognition error:', event.error);
+                    stopVoiceInput();
+                    alert('Voice input error: ' + event.error);
+                };
+                
+                recognition.start();
+            } else {
+                alert('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
+            }
+        }
+        
+        function stopVoiceInput() {
+            if (recognition) {
+                recognition.stop();
+            }
+            isListening = false;
+            const voiceButton = document.getElementById('voiceButton');
+            voiceButton.textContent = '🎤 Voice';
+            voiceButton.classList.remove('listening');
+        }
+        
+        // Check status on load
+        fetch('/status')
+            .then(response => response.json())
+            .then(data => {
+                const statusDiv = document.getElementById('status');
+                if (data.status === 'running') {
+                    statusDiv.innerHTML = '<strong>✅ Status:</strong> Voice Assistant is running and ready!';
+                } else {
+                    statusDiv.innerHTML = '<strong>⚠️ Status:</strong> Voice Assistant is starting...';
+                }
+            })
+            .catch(error => {
+                console.error('Status check failed:', error);
+            });
+    </script>
+</body>
+</html>
